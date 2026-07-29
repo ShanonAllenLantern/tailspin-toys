@@ -88,9 +88,28 @@ npm run typecheck:all    # both of the above
 > [!NOTE]
 > The native compiler is used only for type checking (`--noEmit`); the site is still built by `astro build` (Vite/esbuild). The classic `typescript` package stays on v6 until `typescript-eslint` and `@astrojs/check` support the native API (~TS 7.1); a Dependabot `ignore` in `.github/dependabot.yml` holds the classic `typescript@7` bump until then.
 
-## Copilot Agents & Skills
+## Coding Standards
 
-This project ships Copilot customizations to assist with quality assurance:
+The project uses a set of documented conventions that keep code consistent and readable. The full guidance lives in `.github/instructions/`:
+
+| File | Covers |
+|------|--------|
+| [`comments.instructions.md`](.github/instructions/comments.instructions.md) | Comment philosophy (intent not mechanics), TSDoc/JSDoc for exported functions, Props interface documentation, TypeScript formatting conventions |
+| [`drizzle.instructions.md`](.github/instructions/drizzle.instructions.md) | Data layer patterns — schema, migrations, injectable-db helpers, determinism |
+| [`astro.instructions.md`](.github/instructions/astro.instructions.md) | Astro component patterns, pages, layouts, routing, Props documentation |
+| [`style.instructions.md`](.github/instructions/style.instructions.md) | Tailwind CSS v4 utility classes and dark theme patterns |
+| [`unit-tests.instructions.md`](.github/instructions/unit-tests.instructions.md) | Vitest unit test structure and patterns |
+| [`playwright.instructions.md`](.github/instructions/playwright.instructions.md) | Playwright E2E test structure and patterns |
+
+### Key conventions at a glance
+
+- **Comment intent, not mechanics** — explain *why* code exists, not what it does. Remove comments that paraphrase the line below them.
+- **TSDoc on every exported function** — `db/` and `src/lib/` functions require a purpose sentence, `@param` for each argument (including `db`), and `@returns`.
+- **Document Props interfaces** — every reusable `.astro` component documents its `Props` interface with a JSDoc description and per-property comments where the name alone is unclear.
+- **Explicit TypeScript types** — exported functions declare explicit parameter and return types; `import type` is used for type-only imports; `any` is avoided.
+- **Outdated comments are bugs** — update or remove them in the same commit that changes the related code.
+
+## Copilot Agents & SkillsThis project ships Copilot customizations to assist with quality assurance:
 
 ### PR Readiness Agent
 
