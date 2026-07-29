@@ -1,6 +1,7 @@
 ---
 import type { Game } from '../types/game';
 import Tag from './Tag.astro';
+import StarRating from './StarRating.astro';
 import ArrowRight from '../assets/icons/arrow-right.svg';
 
 interface Props {
@@ -39,13 +40,11 @@ const { game } = Astro.props;
 
             <p class="text-slate-400 mb-4 text-sm line-clamp-2" data-testid="game-description">{game.description}</p>
 
-            <div class="flex items-center gap-1 mb-3" data-testid="game-rating" aria-label={game.starRating != null ? `Rating: ${game.starRating} out of 5 stars` : 'No rating yet'}>
+            <div class="mb-3">
                 {game.starRating != null ? (
-                    Array.from({ length: 5 }, (_, i) => (
-                        <span class={i < game.starRating! ? 'text-yellow-400' : 'text-slate-600'} aria-hidden="true">★</span>
-                    ))
+                    <StarRating rating={game.starRating} />
                 ) : (
-                    <span class="text-slate-500 text-xs italic">No rating yet</span>
+                    <span class="text-slate-500 text-xs italic" data-testid="game-rating">No rating yet</span>
                 )}
             </div>
 
