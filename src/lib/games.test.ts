@@ -4,6 +4,7 @@ import { categories, publishers, games } from '../../db/schema';
 import type { Database } from './db';
 import {
     getAllGames,
+    getGamesByFilters,
     getAllGameIds,
     getGameById,
 } from './games';
@@ -28,6 +29,71 @@ async function seedGames(db: Database, count: number): Promise<void> {
             publisherId: publisher.id,
         });
     }
+}
+
+type FilterFixtures = {
+    strategyCategoryId: number;
+    puzzleCategoryId: number;
+    pixelPublisherId: number;
+    binaryPublisherId: number;
+};
+
+async function seedFilterFixtures(db: Database): Promise<FilterFixtures> {
+    const [strategyCategory] = await db
+        .insert(categories)
+        .values({ name: 'Strategy', description: 'category' })
+        .returning({ id: categories.id });
+    const [puzzleCategory] = await db
+        .insert(categories)
+        .values({ name: 'Puzzle', description: 'category' })
+        .returning({ id: categories.id });
+
+    const [pixelPublisher] = await db
+        .insert(publishers)
+        .values({ name: 'Pixel Forge', description: 'publisher' })
+        .returning({ id: publishers.id });
+    const [binaryPublisher] = await db
+        .insert(publishers)
+        .values({ name: 'Binary Barn', description: 'publisher' })
+        .returning({ id: publishers.id });
+
+    await db.insert(games).values([
+        {
+            title: 'Alpha Architect',
+            description: 'desc',
+            starRating: 4.7,
+            categoryId: strategyCategory.id,
+            publisherId: pixelPublisher.id,
+        },
+        {
+            title: 'Beta Builder',
+            description: 'desc',
+            starRating: 4.1,
+            categoryId: strategyCategory.id,
+            publisherId: binaryPublisher.id,
+        },
+        {
+            title: 'Delta Decoder',
+            description: 'desc',
+            starRating: 4.5,
+            categoryId: puzzleCategory.id,
+            publisherId: binaryPublisher.id,
+        },
+        {
+            title: 'Gamma Grid',
+            description: 'desc',
+            starRating: 4.2,
+            categoryId: puzzleCategory.id,
+            publisherId: pixelPublisher.id,
+        },
+    ]);
+
+    return {
+        strategyCategoryId: strategyCategory.id,
+        puzzleCategoryId: puzzleCategory.id,
+        pixelPublisherId: pixelPublisher.id,
+        binaryPublisherId: binaryPublisher.id,
+    };
 }
 
 describe('games data-access helpers', () => {
@@ -62,5 +128,50 @@ describe('games data-access helpers', () => {
     it('returns null for a non-existent game', async () => {
         await seedGames(db, 2);
         expect(await getGameById(db, 99999)).toBeNull();
+    });
+
+    it('filters games by a single category id', async () => {
+        const fixtures = await seedFilterFixtures(db);
+        const filtered = await getGamesByFilters(db, { categoryIds: [fixtures.strategyCategoryId] });
+        expect(filtered.map((game) => game.title)).toEqual(['Alpha Architect', 'Beta Builder']);
+    });
+
+    it('filters games by multiple category ids', async () => {
+        const fixtures = await seedFilterFixtures(db);
+        const filtered = await getGamesByFilters(db, {
+            categoryIds: [fixtures.strategyCategoryId, fixtures.puzzleCategoryId],
+        });
+        expect(filtered.map((game) => game.title)).toEqual([
+            'Alpha Architect',
+            'Beta Builder',
+            'Delta Decoder',
+            'Gamma Grid',
+        ]);
+    });
+
+    it('filters games by a single publisher id', async () => {
+        const fixtures = await seedFilterFixtures(db);
+        const filtered = await getGamesByFilters(db, { publisherIds: [fixtures.pixelPublisherId] });
+        expect(filtered.map((game) => game.title)).toEqual(['Alpha Architect', 'Gamma Grid']);
+    });
+
+    it('combines category and publisher filters', async () => {
+        const fixtures = await seedFilterFixtures(db);
+        const filtered = await getGamesByFilters(db, {
+            categoryIds: [fixtures.puzzleCategoryId],
+            publisherIds: [fixtures.binaryPublisherId],
+        });
+        expect(filtered.map((game) => game.title)).toEqual(['Delta Decoder']);
+    });
+
+    it('ignores empty filters and returns all games ordered by title', async () => {
+        await seedFilterFixtures(db);
+        const filtered = await getGamesByFilters(db, { categoryIds: [], publisherIds: [] });
+        expect(filtered.map((game) => game.title)).toEqual([
+            'Alpha Architect',
+            'Beta Builder',
+            'Delta Decoder',
+            'Gamma Grid',
+        ]);
     });
 });
