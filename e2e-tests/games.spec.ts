@@ -126,6 +126,7 @@ test.describe('Game Listing and Navigation', () => {
       expect(categoryId).not.toBeNull();
       expect(publisherId).not.toBeNull();
 
+      await page.getByTestId('games-search-input').fill('a');
       await page.getByTestId(`category-filter-option-${categoryId}`).check();
       await page.getByTestId(`publisher-filter-option-${publisherId}`).check();
       await expect(page.getByTestId('filter-results-status')).toContainText('Showing');
@@ -137,6 +138,120 @@ test.describe('Game Listing and Navigation', () => {
       const visibleCards = page.getByTestId('game-card').filter({ visible: true });
       await expect(visibleCards).toHaveCount(baselineCount);
       await expect(page.getByTestId('filter-results-status')).toContainText(`Showing all ${baselineCount} games.`);
+      await expect(page.getByTestId('games-search-input')).toHaveValue('');
+    });
+  });
+
+  test('should filter games by title as the user types', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByTestId('games-grid')).toBeVisible();
+
+    let searchQuery = '';
+
+    await test.step('Use the first game title to build a search query', async () => {
+      const firstTitle = (await page.getByTestId('game-card').first().getByTestId('game-title').textContent()) ?? '';
+      searchQuery = firstTitle.trim().slice(0, 4).toLowerCase();
+      expect(searchQuery.length).toBeGreaterThan(0);
+    });
+
+    await test.step('Type in the search box and verify filtered titles', async () => {
+      await page.getByTestId('games-search-input').fill(searchQuery);
+      await expect(page.getByTestId('filter-results-status')).toContainText('Showing');
+
+      const visibleTitles = await page
+        .getByTestId('game-card')
+        .filter({ visible: true })
+        .getByTestId('game-title')
+        .allTextContents();
+
+      expect(visibleTitles.length).toBeGreaterThan(0);
+      for (const title of visibleTitles) {
+        expect(title.toLowerCase()).toContain(searchQuery);
+      }
+    });
+  });
+
+  test('should match titles case-insensitively and show empty state when no results exist', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByTestId('games-grid')).toBeVisible();
+
+    await test.step('Verify uppercase query still matches lowercase title text', async () => {
+      const firstTitle = (await page.getByTestId('game-card').first().getByTestId('game-title').textContent()) ?? '';
+      const searchQuery = firstTitle.trim().slice(0, 4).toUpperCase();
+      expect(searchQuery.length).toBeGreaterThan(0);
+
+      await page.getByTestId('games-search-input').fill(searchQuery);
+      const visibleCards = page.getByTestId('game-card').filter({ visible: true });
+      const visibleCount = await visibleCards.count();
+      expect(visibleCount).toBeGreaterThan(0);
+    });
+
+    await test.step('Verify no-match query shows empty state', async () => {
+      await page.getByTestId('games-search-input').fill('__no-matching-game-title__');
+      await expect(page.getByTestId('filter-results-status')).toContainText('Showing 0 of');
+      await expect(page.getByTestId('filtered-empty-state')).toBeVisible();
+      await expect(page.getByTestId('game-card').filter({ visible: true })).toHaveCount(0);
+    });
+  });
+
+  test('should sort games by title in descending order', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByTestId('games-grid')).toBeVisible();
+
+    await test.step('Change the sort option to title Z-A', async () => {
+      await page.getByTestId('games-sort-select').selectOption('title-desc');
+    });
+
+    await test.step('Verify visible game titles are sorted descending', async () => {
+      const visibleTitles = await page
+        .getByTestId('game-card')
+        .filter({ visible: true })
+        .getByTestId('game-title')
+        .allTextContents();
+      const normalizedTitles = visibleTitles.map((title) => title.trim());
+      const expectedTitles = [...normalizedTitles].sort((left, right) => right.localeCompare(left));
+
+      expect(normalizedTitles).toEqual(expectedTitles);
+    });
+  });
+
+  test('should sort by rating with unrated games ordered last', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByTestId('games-grid')).toBeVisible();
+
+    await test.step('Select star rating sort', async () => {
+      await page.getByTestId('games-sort-select').selectOption('rating-desc');
+      await expect(page.getByTestId('rating-sort-note')).toContainText('Unrated games appear after rated games');
+    });
+
+    await test.step('Verify ratings are descending and unrated games are last', async () => {
+      const rawRatings = await page
+        .getByTestId('game-card')
+        .filter({ visible: true })
+        .evaluateAll((cards) => cards.map((card) => card.getAttribute('data-star-rating') ?? ''));
+
+      const ratings = rawRatings.map((value) => {
+        const parsed = Number.parseFloat(value);
+        return Number.isFinite(parsed) ? parsed : null;
+      });
+
+      let encounteredUnrated = false;
+      let previousRating: number | null = null;
+
+      for (const rating of ratings) {
+        if (rating === null) {
+          encounteredUnrated = true;
+          continue;
+        }
+
+        expect(encounteredUnrated).toBe(false);
+
+        if (previousRating !== null) {
+          expect(rating).toBeLessThanOrEqual(previousRating);
+        }
+
+        previousRating = rating;
+      }
     });
   });
 
